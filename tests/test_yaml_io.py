@@ -1,0 +1,41 @@
+"""Test YAML I/O utilities."""
+
+import tempfile
+from pathlib import Path
+
+from zoo.services.yaml_io import classify_config, read_yaml, write_yaml
+
+
+def test_read_write_roundtrip():
+    data = {"labware": {"plate1": {"type": "well_plate", "name": "test"}}}
+    with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False) as f:
+        path = Path(f.name)
+    write_yaml(path, data)
+    result = read_yaml(path)
+    assert result == data
+    path.unlink()
+
+
+def test_classify_deck():
+    assert classify_config({"labware": {}}) == "deck"
+
+
+def test_classify_board():
+    assert classify_config({"instruments": {}}) == "board"
+
+
+def test_classify_gantry():
+    assert classify_config({"working_volume": {}}) == "gantry"
+
+
+def test_classify_unknown():
+    assert classify_config({"other": {}}) is None
+
+
+def test_read_empty_yaml():
+    with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False, mode="w") as f:
+        f.write("")
+        path = Path(f.name)
+    result = read_yaml(path)
+    assert result == {}
+    path.unlink()

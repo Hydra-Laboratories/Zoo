@@ -1,0 +1,134 @@
+import { useEffect, useState } from "react";
+import type { GantryResponse, GantryConfig } from "../../types";
+import { NumberField, SaveButton, TextField } from "./fields";
+import ImportFromFile from "./ImportFromFile";
+
+interface Props {
+  configs: string[];
+  selectedFile: string | null;
+  onSelectFile: (f: string) => void;
+  gantry: GantryResponse | null;
+  onSave: (body: GantryConfig) => void;
+  onRefresh: () => void;
+}
+
+const HOMING_STRATEGIES = ["standard", "xy_hard_limits"];
+
+const EMPTY_GANTRY: GantryConfig = {
+  serial_port: "",
+  cnc: { homing_strategy: "xy_hard_limits" },
+  working_volume: { x_min: -300, x_max: 0, y_min: -200, y_max: 0, z_min: -80, z_max: 0 },
+};
+
+export default function GantryEditor({ configs, selectedFile, onSelectFile, gantry, onSave }: Props) {
+  const [config, setConfig] = useState<GantryConfig | null>(null);
+  const [saveAs, setSaveAs] = useState("");
+
+  useEffect(() => {
+    if (gantry) {
+      setConfig(structuredClone(gantry.config));
+    }
+  }, [gantry]);
+
+  const startNew = () => {
+    setConfig(structuredClone(EMPTY_GANTRY));
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <ImportFromFile configs={configs} onSelectFile={onSelectFile} label="Import gantry config" />
+        {!config && <button onClick={startNew} style={addBtnStyle}>+ New Gantry Config</button>}
+      </div>
+
+      {config && (
+        <>
+          <div style={cardStyle}>
+            <h4 style={{ margin: "0 0 8px", color: "#16a34a", fontSize: 13 }}>Connection</h4>
+            <TextField
+              label="Serial port"
+              value={config.serial_port}
+              onChange={(v) => setConfig({ ...config, serial_port: v })}
+            />
+            <div style={{ marginTop: 8 }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
+                <span style={{ color: "#666" }}>Homing strategy</span>
+                <select
+                  value={config.cnc?.homing_strategy ?? "standard"}
+                  onChange={(v) => setConfig({ ...config, cnc: { ...config.cnc!, homing_strategy: v.target.value } })}
+                  style={selectStyle}
+                >
+                  {HOMING_STRATEGIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <h4 style={{ margin: "0 0 8px", color: "#16a34a", fontSize: 13 }}>Working Volume</h4>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <NumberField label="X min" value={config.working_volume.x_min} onChange={(v) => setConfig({ ...config, working_volume: { ...config.working_volume, x_min: v } })} />
+              <NumberField label="X max" value={config.working_volume.x_max} onChange={(v) => setConfig({ ...config, working_volume: { ...config.working_volume, x_max: v } })} />
+              <NumberField label="Y min" value={config.working_volume.y_min} onChange={(v) => setConfig({ ...config, working_volume: { ...config.working_volume, y_min: v } })} />
+              <NumberField label="Y max" value={config.working_volume.y_max} onChange={(v) => setConfig({ ...config, working_volume: { ...config.working_volume, y_max: v } })} />
+              <NumberField label="Z min" value={config.working_volume.z_min} onChange={(v) => setConfig({ ...config, working_volume: { ...config.working_volume, z_min: v } })} />
+              <NumberField label="Z max" value={config.working_volume.z_max} onChange={(v) => setConfig({ ...config, working_volume: { ...config.working_volume, z_max: v } })} />
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 12 }}>
+            <input
+              value={saveAs}
+              onChange={(e) => setSaveAs(e.target.value)}
+              placeholder={selectedFile ?? "my_gantry.yaml"}
+              style={filenameInputStyle}
+            />
+            <SaveButton onClick={() => {
+              if (saveAs.trim()) onSelectFile(saveAs.trim().endsWith(".yaml") ? saveAs.trim() : saveAs.trim() + ".yaml");
+              onSave(config);
+            }} />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const cardStyle: React.CSSProperties = {
+  background: "#fafafa",
+  border: "1px solid #e0e0e0",
+  borderRadius: 6,
+  padding: 12,
+  marginTop: 8,
+};
+
+const selectStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ccc",
+  color: "#1a1a1a",
+  padding: "4px 6px",
+  borderRadius: 4,
+  fontSize: 13,
+};
+
+const addBtnStyle: React.CSSProperties = {
+  background: "#fff",
+  color: "#16a34a",
+  border: "1px solid #16a34a",
+  padding: "5px 14px",
+  borderRadius: 4,
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 600,
+  whiteSpace: "nowrap",
+};
+
+const filenameInputStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ccc",
+  color: "#1a1a1a",
+  padding: "4px 8px",
+  borderRadius: 4,
+  fontSize: 13,
+  flex: 1,
+};

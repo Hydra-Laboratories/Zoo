@@ -1,0 +1,168 @@
+import { useState, useEffect } from "react";
+
+function tryParse(s: string): number | null {
+  if (s === "" || s === "-" || s === "." || s === "-.") return null;
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+
+interface NumberFieldProps {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  step?: number;
+  required?: boolean;
+}
+
+export function NumberField({ label, value, onChange, required }: NumberFieldProps) {
+  const [raw, setRaw] = useState(String(value));
+  useEffect(() => { setRaw(String(value)); }, [value]);
+
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
+      <span style={{ color: "#666" }}>{label}{required && <span style={{ color: "#dc2626" }}> *</span>}</span>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={raw}
+        onChange={(e) => {
+          setRaw(e.target.value);
+          const n = tryParse(e.target.value);
+          if (n !== null) onChange(n);
+        }}
+        onBlur={() => setRaw(String(value))}
+        style={inputStyle}
+      />
+    </label>
+  );
+}
+
+interface TextFieldProps {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  required?: boolean;
+}
+
+export function TextField({ label, value, onChange, required }: TextFieldProps) {
+  const hasError = required && !value.trim();
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
+      <span style={{ color: "#666" }}>{label}{required && <span style={{ color: "#dc2626" }}> *</span>}</span>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        style={hasError ? { ...inputStyle, borderColor: "#dc2626" } : inputStyle}
+      />
+    </label>
+  );
+}
+
+interface CoordinateFieldProps {
+  label: string;
+  value: { x: number; y: number; z: number };
+  onChange: (v: { x: number; y: number; z: number }) => void;
+  required?: boolean;
+}
+
+export function CoordinateField({ label, value, onChange, required }: CoordinateFieldProps) {
+  const [rx, setRx] = useState(String(value.x));
+  const [ry, setRy] = useState(String(value.y));
+  const [rz, setRz] = useState(String(value.z));
+  useEffect(() => { setRx(String(value.x)); }, [value.x]);
+  useEffect(() => { setRy(String(value.y)); }, [value.y]);
+  useEffect(() => { setRz(String(value.z)); }, [value.z]);
+
+  return (
+    <div style={{ fontSize: 12 }}>
+      <span style={{ color: "#666" }}>{label}{required && <span style={{ color: "#dc2626" }}> *</span>}</span>
+      <div style={{ display: "flex", gap: 4, marginTop: 2 }}>
+        <input
+          type="text"
+          inputMode="decimal"
+          value={rx}
+          onChange={(e) => { setRx(e.target.value); const n = tryParse(e.target.value); if (n !== null) onChange({ ...value, x: n }); }}
+          onBlur={() => setRx(String(value.x))}
+          style={{ ...inputStyle, width: 80 }}
+          placeholder="X"
+        />
+        <input
+          type="text"
+          inputMode="decimal"
+          value={ry}
+          onChange={(e) => { setRy(e.target.value); const n = tryParse(e.target.value); if (n !== null) onChange({ ...value, y: n }); }}
+          onBlur={() => setRy(String(value.y))}
+          style={{ ...inputStyle, width: 80 }}
+          placeholder="Y"
+        />
+        <input
+          type="text"
+          inputMode="decimal"
+          value={rz}
+          onChange={(e) => { setRz(e.target.value); const n = tryParse(e.target.value); if (n !== null) onChange({ ...value, z: n }); }}
+          onBlur={() => setRz(String(value.z))}
+          style={{ ...inputStyle, width: 80 }}
+          placeholder="Z"
+        />
+      </div>
+    </div>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  background: "#fff",
+  border: "1px solid #ccc",
+  color: "#1a1a1a",
+  padding: "4px 6px",
+  borderRadius: 4,
+  fontSize: 13,
+};
+
+export function SelectField({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: string[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
+      <span style={{ color: "#666" }}>{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)} style={inputStyle}>
+        {options.length === 0 && <option value="">No configs found</option>}
+        {options.map((o) => (
+          <option key={o} value={o}>
+            {o}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+export function SaveButton({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        background: "#2563eb",
+        color: "#fff",
+        border: "none",
+        padding: "6px 20px",
+        borderRadius: 4,
+        cursor: disabled ? "not-allowed" : "pointer",
+        fontSize: 13,
+        fontWeight: 600,
+        marginTop: 12,
+      }}
+    >
+      Save
+    </button>
+  );
+}
