@@ -32,8 +32,26 @@ def classify_config(data: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def resolve_config_path(configs_dir: Path, kind: str, filename: str) -> Path:
+    """Return the full path for a config file, using the subdirectory if it exists."""
+    sub = configs_dir / kind
+    if sub.is_dir():
+        return sub / filename
+    return configs_dir / filename
+
+
 def list_configs(configs_dir: Path, kind: str) -> List[str]:
-    """List YAML filenames in configs_dir matching the given kind."""
+    """List YAML filenames for the given kind.
+
+    Checks ``configs_dir/<kind>/`` first (PANDA_CORE's standard layout),
+    then falls back to a flat scan of ``configs_dir/`` with content-based
+    classification.
+    """
+    sub = configs_dir / kind
+    if sub.is_dir():
+        return sorted(p.name for p in sub.glob("*.yaml"))
+
+    # Fallback: flat directory with content-based classification.
     results = []
     if not configs_dir.is_dir():
         return results

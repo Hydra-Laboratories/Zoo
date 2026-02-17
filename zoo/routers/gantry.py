@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from zoo.config import ZooSettings
 from zoo.models.gantry import GantryConfig, GantryPosition, GantryResponse
-from zoo.services.yaml_io import list_configs, read_yaml, write_yaml
+from zoo.services.yaml_io import list_configs, read_yaml, resolve_config_path, write_yaml
 
 router = APIRouter(prefix="/api/gantry", tags=["gantry"])
 settings = ZooSettings()
@@ -87,7 +87,7 @@ def connect() -> GantryPosition:
         gantry_configs = list_configs(configs_dir, "gantry")
         config = {}
         if gantry_configs:
-            config = read_yaml(configs_dir / gantry_configs[0])
+            config = read_yaml(resolve_config_path(configs_dir, "gantry", gantry_configs[0]))
         _gantry = Gantry(config=config)
         _gantry.connect()
     except Exception as e:
@@ -107,7 +107,7 @@ def disconnect() -> GantryPosition:
 
 @router.get("/{filename}")
 def get_gantry(filename: str) -> GantryResponse:
-    path = configs_dir / filename
+    path = resolve_config_path(configs_dir, "gantry", filename)
     if not path.is_file():
         raise HTTPException(404, f"Config not found: {filename}")
     data = read_yaml(path)
@@ -117,6 +117,6 @@ def get_gantry(filename: str) -> GantryResponse:
 
 @router.put("/{filename}")
 def put_gantry(filename: str, body: dict) -> GantryResponse:
-    path = configs_dir / filename
+    path = resolve_config_path(configs_dir, "gantry", filename)
     write_yaml(path, body)
     return get_gantry(filename)

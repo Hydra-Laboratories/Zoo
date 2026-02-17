@@ -11,7 +11,7 @@ from instruments.pipette.models import PIPETTE_MODELS
 from pydantic import BaseModel
 
 from zoo.config import ZooSettings
-from zoo.services.yaml_io import list_configs, read_yaml, write_yaml
+from zoo.services.yaml_io import list_configs, read_yaml, resolve_config_path, write_yaml
 
 router = APIRouter(prefix="/api/board", tags=["board"])
 settings = ZooSettings()
@@ -150,7 +150,7 @@ def list_board_configs() -> list[str]:
 
 @router.get("/{filename}")
 def get_board(filename: str) -> BoardResponse:
-    path = configs_dir / filename
+    path = resolve_config_path(configs_dir, "board", filename)
     if not path.is_file():
         raise HTTPException(404, f"Config not found: {filename}")
 
@@ -170,6 +170,6 @@ def get_board(filename: str) -> BoardResponse:
 
 @router.put("/{filename}")
 def put_board(filename: str, body: dict) -> BoardResponse:
-    path = configs_dir / filename
+    path = resolve_config_path(configs_dir, "board", filename)
     write_yaml(path, body)
     return get_board(filename)

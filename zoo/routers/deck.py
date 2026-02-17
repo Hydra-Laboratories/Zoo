@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from zoo.config import ZooSettings
-from zoo.services.yaml_io import list_configs, read_yaml, write_yaml
+from zoo.services.yaml_io import list_configs, read_yaml, resolve_config_path, write_yaml
 
 router = APIRouter(prefix="/api/deck", tags=["deck"])
 settings = ZooSettings()
@@ -47,7 +47,7 @@ def list_deck_configs() -> list[str]:
 
 @router.get("/{filename}")
 def get_deck(filename: str) -> DeckResponse:
-    path = configs_dir / filename
+    path = resolve_config_path(configs_dir, "deck", filename)
     if not path.is_file():
         raise HTTPException(404, f"Config not found: {filename}")
 
@@ -89,6 +89,6 @@ def preview_wells(body: dict) -> Dict[str, WellPosition]:
 
 @router.put("/{filename}")
 def put_deck(filename: str, body: dict) -> DeckResponse:
-    path = configs_dir / filename
+    path = resolve_config_path(configs_dir, "deck", filename)
     write_yaml(path, body)
     return get_deck(filename)
