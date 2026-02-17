@@ -19,25 +19,21 @@ export default function WellPlateRenderer({
   machineYRange,
 }: Props) {
   const wellRadius = 3;
-  const a1 = config.calibration.a1 ?? config.a1;
-  if (!a1) return null;
+  const wellEntries = Object.values(wells);
+  if (wellEntries.length === 0) return null;
 
-  // Derive plate outline from A1 + pitch + grid size
+  // Derive bounding box from actual well positions (handles any orientation).
+  const pitch = Math.max(Math.abs(config.x_offset_mm), Math.abs(config.y_offset_mm), 9);
+  const pad = pitch * 0.5;
+  const xs = wellEntries.map((w) => w.x);
+  const ys = wellEntries.map((w) => w.y);
   const topLeft = machineToSvg(
-    a1.x + config.x_offset_mm * -0.5,
-    a1.y - config.y_offset_mm * 0.5,
-    svgWidth,
-    svgHeight,
-    machineXRange,
-    machineYRange
+    Math.min(...xs) - pad, Math.max(...ys) + pad,
+    svgWidth, svgHeight, machineXRange, machineYRange
   );
   const bottomRight = machineToSvg(
-    a1.x + config.x_offset_mm * (config.columns - 0.5),
-    a1.y + config.y_offset_mm * (config.rows - 0.5),
-    svgWidth,
-    svgHeight,
-    machineXRange,
-    machineYRange
+    Math.max(...xs) + pad, Math.min(...ys) - pad,
+    svgWidth, svgHeight, machineXRange, machineYRange
   );
 
   const rectX = Math.min(topLeft.sx, bottomRight.sx);

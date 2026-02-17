@@ -18,9 +18,11 @@ export default function GantryMarker({
 }: Props) {
   if (!position.connected) return null;
 
+  const posX = position.work_x ?? position.x;
+  const posY = position.work_y ?? position.y;
   const { sx, sy } = machineToSvg(
-    position.x,
-    position.y,
+    posX,
+    posY,
     svgWidth,
     svgHeight,
     machineXRange,

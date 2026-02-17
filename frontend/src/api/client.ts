@@ -98,6 +98,16 @@ export const protocolApi = {
         body: JSON.stringify(body),
       },
     ),
+  run: (body: {
+    gantry_file: string;
+    deck_file: string;
+    board_file: string;
+    protocol_file: string;
+  }) =>
+    request<{ status: string; steps_executed: number }>("/protocol/run", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };
 
 // Settings

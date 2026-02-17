@@ -2,11 +2,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { gantryApi } from "../api/client";
 import type { GantryConfig } from "../types";
 
-export function useGantryPosition() {
+export function useGantryPosition(enabled = true) {
   return useQuery({
     queryKey: ["gantry", "position"],
     queryFn: gantryApi.getPosition,
-    refetchInterval: 500,
+    refetchInterval: enabled ? 500 : false,
+    enabled,
   });
 }
 

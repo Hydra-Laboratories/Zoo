@@ -31,10 +31,10 @@ export default function InstrumentRenderer({
 }: Props) {
   const color = INSTRUMENT_COLORS[instrument.type] ?? "#6b7280";
 
-  // If gantry is connected, show instrument at gantry position + offset
-  if (gantryPosition?.connected) {
-    const instX = gantryPosition.x + (instrument.offset_x ?? 0);
-    const instY = gantryPosition.y + (instrument.offset_y ?? 0);
+  // When gantry is connected and WPos is available, show instrument at WPos + offset
+  if (gantryPosition?.connected && gantryPosition.work_x != null && gantryPosition.work_y != null) {
+    const instX = gantryPosition.work_x + (instrument.offset_x ?? 0);
+    const instY = gantryPosition.work_y + (instrument.offset_y ?? 0);
     const { sx, sy } = machineToSvg(instX, instY, svgWidth, svgHeight, machineXRange, machineYRange);
 
     return (
@@ -51,7 +51,7 @@ export default function InstrumentRenderer({
     );
   }
 
-  // When not connected, show instrument offset as a vector from origin (0,0)
+  // When not connected (or no WPos), show instrument offset as a vector from origin
   const originSvg = machineToSvg(0, 0, svgWidth, svgHeight, machineXRange, machineYRange);
   const offsetSvg = machineToSvg(
     instrument.offset_x ?? 0,

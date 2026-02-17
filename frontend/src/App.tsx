@@ -8,7 +8,7 @@ import DeckEditor from "./components/editor/DeckEditor";
 import BoardEditor from "./components/editor/BoardEditor";
 import GantryEditor from "./components/editor/GantryEditor";
 import ProtocolEditor from "./components/editor/ProtocolEditor";
-import { settingsApi, deckApi } from "./api/client";
+import { settingsApi, deckApi, protocolApi } from "./api/client";
 import { useDeckConfigs, useDeck, useSaveDeck } from "./hooks/useDeck";
 import { useBoardConfigs, useBoard, useSaveBoard, useInstrumentTypes, useInstrumentSchemas } from "./hooks/useBoard";
 import { useGantryPosition, useGantryConfigs, useGantry, useSaveGantry } from "./hooks/useGantryPosition";
@@ -27,6 +27,9 @@ export default function App() {
   const [gantryFile, setGantryFile] = useState<string | null>(null);
   const [protocolFile, setProtocolFile] = useState<string | null>(null);
   const [validationResult, setValidationResult] = useState<ProtocolValidationResponse | null>(null);
+  const [runResult, setRunResult] = useState<{ status: string; steps_executed: number } | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
 
   // Load current PANDA_CORE path on mount
   React.useEffect(() => {
@@ -59,7 +62,7 @@ export default function App() {
   const gantryConfigs = useGantryConfigs();
   const gantryQuery = useGantry(gantryFile);
   const saveGantry = useSaveGantry(gantryFile ?? "");
-  const gantryPosition = useGantryPosition();
+  const gantryPosition = useGantryPosition(!isRunning);
 
   const protocolCommands = useProtocolCommands();
   const protocolConfigs = useProtocolConfigs();
@@ -121,6 +124,26 @@ export default function App() {
     qc.invalidateQueries({ queryKey: ["gantry"] });
     qc.invalidateQueries({ queryKey: ["protocol"] });
     setLocalDeck(null);
+  };
+
+  const handleRunProtocol = async () => {
+    if (!gantryFile || !deckFile || !boardFile || !protocolFile) return;
+    setIsRunning(true);
+    setRunResult(null);
+    setRunError(null);
+    try {
+      const result = await protocolApi.run({
+        gantry_file: gantryFile,
+        deck_file: deckFile,
+        board_file: boardFile,
+        protocol_file: protocolFile,
+      });
+      setRunResult(result);
+    } catch (err: unknown) {
+      setRunError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsRunning(false);
+    }
   };
 
   const left = (
@@ -221,6 +244,10 @@ export default function App() {
           validationErrors={validationResult?.errors ?? null}
           isValidating={validateProtocol.isPending}
           onRefresh={refreshAll}
+          onRun={handleRunProtocol}
+          isRunning={isRunning}
+          runResult={runResult}
+          runError={runError}
         />
       )}
     </div>

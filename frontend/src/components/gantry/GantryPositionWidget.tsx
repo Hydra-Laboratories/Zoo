@@ -140,14 +140,22 @@ export default function GantryPositionWidget({ position, workingVolume }: Props)
 
         {/* XYZ Readout */}
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 6 }}>
-          {(["X", "Y", "Z"] as const).map((axis) => (
-            <div key={axis} style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-              <span style={{ color: "#888", fontSize: 13, fontWeight: 600, width: 14 }}>{axis}</span>
-              <span style={coordStyle}>
-                {connected ? position![axis.toLowerCase() as "x" | "y" | "z"].toFixed(3) : "\u2014"}
-              </span>
-            </div>
-          ))}
+          {(["X", "Y", "Z"] as const).map((axis) => {
+            const mpos = connected ? position![axis.toLowerCase() as "x" | "y" | "z"] : null;
+            const wKey = `work_${axis.toLowerCase()}` as "work_x" | "work_y" | "work_z";
+            const wpos = connected ? position![wKey] : null;
+            return (
+              <div key={axis} style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                <span style={{ color: "#888", fontSize: 13, fontWeight: 600, width: 14 }}>{axis}</span>
+                <span style={coordStyle}>
+                  {wpos != null ? wpos.toFixed(3) : mpos != null ? mpos.toFixed(3) : "\u2014"}
+                </span>
+                {wpos != null && mpos != null && (
+                  <span style={{ color: "#bbb", fontSize: 10 }}>M{mpos.toFixed(1)}</span>
+                )}
+              </div>
+            );
+          })}
           <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
             {position?.status ?? "Not connected"}
           </div>

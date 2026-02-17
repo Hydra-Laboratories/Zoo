@@ -14,6 +14,10 @@ interface Props {
   validationErrors: string[] | null;
   isValidating: boolean;
   onRefresh: () => void;
+  onRun: () => void;
+  isRunning: boolean;
+  runResult: { status: string; steps_executed: number } | null;
+  runError: string | null;
 }
 
 const COMMAND_COLORS: Record<string, string> = {
@@ -49,6 +53,10 @@ export default function ProtocolEditor({
   onValidate,
   validationErrors,
   isValidating,
+  onRun,
+  isRunning,
+  runResult,
+  runError,
 }: Props) {
   const [steps, setSteps] = useState<ProtocolStep[]>([]);
   const [addCommand, setAddCommand] = useState(commands[0]?.name ?? "move");
@@ -198,10 +206,21 @@ export default function ProtocolEditor({
             <button onClick={handleSave} style={saveBtnStyle}>
               Save
             </button>
+            <button onClick={onRun} disabled={isRunning || !hasSteps} style={runBtnStyle}>
+              {isRunning ? "Running..." : "Run Protocol"}
+            </button>
           </div>
 
           {validationErrors !== null && validationErrors.length === 0 && (
             <p style={{ color: "#059669", fontSize: 12, margin: "6px 0 0" }}>Protocol is valid.</p>
+          )}
+          {runResult && (
+            <p style={{ color: "#059669", fontSize: 12, margin: "6px 0 0" }}>
+              Protocol complete — {runResult.steps_executed} steps executed.
+            </p>
+          )}
+          {runError && (
+            <p style={{ color: "#dc2626", fontSize: 12, margin: "6px 0 0" }}>{runError}</p>
           )}
         </div>
       )}
@@ -283,6 +302,17 @@ const validateBtnStyle: React.CSSProperties = {
 
 const saveBtnStyle: React.CSSProperties = {
   background: "#2563eb",
+  color: "#fff",
+  border: "none",
+  padding: "6px 20px",
+  borderRadius: 4,
+  cursor: "pointer",
+  fontSize: 13,
+  fontWeight: 600,
+};
+
+const runBtnStyle: React.CSSProperties = {
+  background: "#059669",
   color: "#fff",
   border: "none",
   padding: "6px 20px",

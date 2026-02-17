@@ -6,10 +6,14 @@ so any new @protocol_command in PANDA_CORE is automatically available.
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from protocol_engine.registry import CommandRegistry
+from protocol_engine.setup import run_protocol
+from validation.errors import SetupValidationError
 
 # Side-effect import: triggers @protocol_command registration.
 import protocol_engine.commands  # noqa: F401
@@ -139,3 +143,38 @@ def validate_protocol(body: ProtocolConfig) -> ProtocolValidationResponse:
             errors.append(f"Step {i} ({step.command}): {e}")
 
     return ProtocolValidationResponse(valid=len(errors) == 0, errors=errors)
+
+
+class RunProtocolRequest(BaseModel):
+    gantry_file: str
+    deck_file: str
+    board_file: str
+    protocol_file: str
+
+
+@router.post("/run")
+def run_protocol_endpoint(body: RunProtocolRequest) -> dict:
+    """Run a protocol with all four configs and the connected gantry."""
+    from zoo.routers.gantry import _gantry
+
+    settings = get_settings()
+    gantry_path = resolve_config_path(settings.configs_dir, "gantry", body.gantry_file)
+    deck_path = resolve_config_path(settings.configs_dir, "deck", body.deck_file)
+    board_path = resolve_config_path(settings.configs_dir, "board", body.board_file)
+    protocol_path = resolve_config_path(settings.configs_dir, "protocol", body.protocol_file)
+
+    if _gantry is None or not _gantry.is_healthy():
+        raise HTTPException(400, "Gantry is not connected")
+
+    try:
+        results = run_protocol(
+            str(gantry_path), str(deck_path), str(board_path), str(protocol_path),
+            gantry=_gantry,
+        )
+    except SetupValidationError as exc:
+        raise HTTPException(400, str(exc))
+    except Exception as exc:
+        logging.exception("Protocol execution failed")
+        raise HTTPException(500, f"Execution failed: {exc}")
+
+    return {"status": "ok", "steps_executed": len(results)}

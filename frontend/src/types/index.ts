@@ -106,6 +106,9 @@ export interface GantryPosition {
   x: number;
   y: number;
   z: number;
+  work_x: number | null;
+  work_y: number | null;
+  work_z: number | null;
   status: string;
   connected: boolean;
 }

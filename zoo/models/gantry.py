@@ -38,5 +38,8 @@ class GantryPosition(BaseModel):
     x: float = 0.0
     y: float = 0.0
     z: float = 0.0
+    work_x: Optional[float] = None
+    work_y: Optional[float] = None
+    work_z: Optional[float] = None
     status: str = "Unknown"
     connected: bool = False

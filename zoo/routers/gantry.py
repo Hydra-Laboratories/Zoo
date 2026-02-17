@@ -26,15 +26,17 @@ def get_position() -> GantryPosition:
     if _gantry is None or not _gantry.is_healthy():
         return GantryPosition(connected=False, status="Not connected")
     try:
-        coords = _gantry.get_coordinates()
-        raw_status = _gantry.get_status()
-        # Parse GRBL status: "<Idle|MPos:...>" → "Idle"
-        status = raw_status.strip("<>").split("|")[0] if raw_status else "Unknown"
+        info = _gantry.get_position_info()
+        coords = info["coords"]
+        wpos = info["work_pos"]
         return GantryPosition(
-            x=round(coords["x"], 3),
-            y=round(coords["y"], 3),
-            z=round(coords["z"], 3),
-            status=status,
+            x=coords["x"],
+            y=coords["y"],
+            z=coords["z"],
+            work_x=wpos["x"] if wpos else None,
+            work_y=wpos["y"] if wpos else None,
+            work_z=wpos["z"] if wpos else None,
+            status=info["status"],
             connected=True,
         )
     except Exception:
