@@ -1,10 +1,18 @@
-"""Protocol router: CRUD for protocol YAML files + command registry."""
+"""Protocol router: CRUD for protocol YAML files + command registry.
+
+Commands are introspected from PANDA_CORE's CommandRegistry at runtime,
+so any new @protocol_command in PANDA_CORE is automatically available.
+"""
 
 from __future__ import annotations
 
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, HTTPException
+from protocol_engine.registry import CommandRegistry
+
+# Side-effect import: triggers @protocol_command registration.
+import protocol_engine.commands  # noqa: F401
 
 from zoo.config import ZooSettings
 from zoo.models.protocol import (
@@ -22,87 +30,37 @@ _settings = ZooSettings()
 
 
 # ---------------------------------------------------------------------------
-# Command registry introspection
+# Helpers
 # ---------------------------------------------------------------------------
 
-# Protocol commands are defined in PANDA_CORE via @protocol_command decorators.
-# We hardcode the command schemas here so Zoo has no import-time dependency
-# on PANDA_CORE (which may require serial drivers, DLLs, etc.).
-# Keep this in sync with src/protocol_engine/commands/*.py.
 
-_COMMANDS: List[CommandInfo] = [
-    CommandInfo(
-        name="move",
-        description="Move an instrument to a deck position.",
-        args=[
-            CommandArg(name="instrument", type="str", required=True),
-            CommandArg(name="position", type="str", required=True),
-        ],
-    ),
-    CommandInfo(
-        name="aspirate",
-        description="Move pipette to position, then aspirate.",
-        args=[
-            CommandArg(name="position", type="str", required=True),
-            CommandArg(name="volume_ul", type="float", required=True),
-            CommandArg(name="speed", type="float", required=False, default=50.0),
-        ],
-    ),
-    CommandInfo(
-        name="dispense",
-        description="Move pipette to position, then dispense.",
-        args=[
-            CommandArg(name="position", type="str", required=True),
-            CommandArg(name="volume_ul", type="float", required=True),
-            CommandArg(name="speed", type="float", required=False, default=50.0),
-        ],
-    ),
-    CommandInfo(
-        name="blowout",
-        description="Move pipette to position, then blowout.",
-        args=[
-            CommandArg(name="position", type="str", required=True),
-            CommandArg(name="speed", type="float", required=False, default=50.0),
-        ],
-    ),
-    CommandInfo(
-        name="mix",
-        description="Move pipette to position, then mix.",
-        args=[
-            CommandArg(name="position", type="str", required=True),
-            CommandArg(name="volume_ul", type="float", required=True),
-            CommandArg(name="repetitions", type="int", required=False, default=3),
-            CommandArg(name="speed", type="float", required=False, default=50.0),
-        ],
-    ),
-    CommandInfo(
-        name="pick_up_tip",
-        description="Move pipette to position, then pick up a tip.",
-        args=[
-            CommandArg(name="position", type="str", required=True),
-            CommandArg(name="speed", type="float", required=False, default=50.0),
-        ],
-    ),
-    CommandInfo(
-        name="drop_tip",
-        description="Move pipette to position, then drop the tip.",
-        args=[
-            CommandArg(name="position", type="str", required=True),
-            CommandArg(name="speed", type="float", required=False, default=50.0),
-        ],
-    ),
-    CommandInfo(
-        name="scan",
-        description="Scan every well on a plate using an instrument method.",
-        args=[
-            CommandArg(name="plate", type="str", required=True),
-            CommandArg(name="instrument", type="str", required=True),
-            CommandArg(name="method", type="str", required=True),
-        ],
-    ),
-]
+def _type_name(annotation: Any) -> str:
+    """Convert a Python type annotation to a simple string for the frontend."""
+    name = getattr(annotation, "__name__", None)
+    if name:
+        return name
+    return str(annotation)
 
-_COMMANDS_BY_NAME: Dict[str, CommandInfo] = {c.name: c for c in _COMMANDS}
+
+def _build_command_info(name: str) -> CommandInfo:
+    """Build a CommandInfo from a registered PANDA_CORE command."""
+    registry = CommandRegistry.instance()
+    cmd = registry.get(name)
+    args = []
+    for field_name, field_info in cmd.schema.model_fields.items():
+        args.append(
+            CommandArg(
+                name=field_name,
+                type=_type_name(field_info.annotation),
+                required=field_info.is_required(),
+                default=None if field_info.is_required() else field_info.default,
+            )
+        )
+    return CommandInfo(
+        name=cmd.name,
+        description=(cmd.handler.__doc__ or "").strip(),
+        args=args,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -113,15 +71,17 @@ _COMMANDS_BY_NAME: Dict[str, CommandInfo] = {c.name: c for c in _COMMANDS}
 @router.get("/commands")
 def get_commands() -> List[CommandInfo]:
     """Return all registered protocol commands with their argument schemas."""
-    return _COMMANDS
+    registry = CommandRegistry.instance()
+    return [_build_command_info(name) for name in registry.command_names]
 
 
 @router.get("/commands/{name}")
 def get_command(name: str) -> CommandInfo:
     """Return schema for a single protocol command."""
-    if name not in _COMMANDS_BY_NAME:
+    registry = CommandRegistry.instance()
+    if name not in registry.command_names:
         raise HTTPException(404, f"Unknown command '{name}'")
-    return _COMMANDS_BY_NAME[name]
+    return _build_command_info(name)
 
 
 @router.get("/configs")
@@ -163,32 +123,21 @@ def save_protocol(filename: str, body: ProtocolConfig) -> dict:
 
 @router.post("/validate")
 def validate_protocol(body: ProtocolConfig) -> ProtocolValidationResponse:
-    """Validate a protocol against the known command schemas."""
+    """Validate a protocol against PANDA_CORE's command schemas."""
+    registry = CommandRegistry.instance()
     errors: List[str] = []
     for i, step in enumerate(body.protocol):
-        if step.command not in _COMMANDS_BY_NAME:
-            available = ", ".join(sorted(_COMMANDS_BY_NAME.keys()))
+        if step.command not in registry.command_names:
             errors.append(
                 f"Step {i}: Unknown command '{step.command}'. "
-                f"Available: {available}"
+                f"Available: {', '.join(registry.command_names)}"
             )
             continue
 
-        cmd = _COMMANDS_BY_NAME[step.command]
-        required_args = {a.name for a in cmd.args if a.required}
-        known_args = {a.name for a in cmd.args}
-        provided = set(step.args.keys())
-
-        missing = required_args - provided
-        if missing:
-            errors.append(
-                f"Step {i} ({step.command}): missing required args: {', '.join(sorted(missing))}"
-            )
-
-        unknown = provided - known_args
-        if unknown:
-            errors.append(
-                f"Step {i} ({step.command}): unknown args: {', '.join(sorted(unknown))}"
-            )
+        cmd = registry.get(step.command)
+        try:
+            cmd.schema.model_validate(step.args)
+        except Exception as e:
+            errors.append(f"Step {i} ({step.command}): {e}")
 
     return ProtocolValidationResponse(valid=len(errors) == 0, errors=errors)

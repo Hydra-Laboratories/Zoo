@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { BoardResponse, InstrumentConfig, BoardConfig } from "../../types";
+import type { BoardResponse, InstrumentConfig, BoardConfig, InstrumentTypeInfo, InstrumentSchemas } from "../../types";
 import { NumberField, SaveButton, TextField } from "./fields";
 import ImportFromFile from "./ImportFromFile";
 
@@ -8,62 +8,16 @@ interface Props {
   selectedFile: string | null;
   onSelectFile: (f: string) => void;
   board: BoardResponse | null;
+  instrumentTypes: InstrumentTypeInfo[];
+  instrumentSchemas: InstrumentSchemas;
   onSave: (body: BoardConfig) => void;
   onRefresh: () => void;
 }
 
-const INSTRUMENT_TEMPLATES: Record<string, InstrumentConfig> = {
-  uvvis_ccs: {
-    type: "uvvis_ccs",
-    serial_number: "",
-    dll_path: "TLCCS_64.dll",
-    default_integration_time_s: 0.24,
-    offset_x: 0.0,
-    offset_y: 0.0,
-    depth: 0.0,
-    measurement_height: 0.0,
-  },
-  pipette: {
-    type: "pipette",
-    pipette_model: "p300_single_gen2",
-    port: "",
-    baud_rate: 115200,
-    command_timeout: 30.0,
-    offset_x: 0.0,
-    offset_y: 0.0,
-    depth: 0.0,
-    measurement_height: 0.0,
-  },
-  filmetrics: {
-    type: "filmetrics",
-    exe_path: "",
-    recipe_name: "",
-    command_timeout: 30.0,
-    offset_x: 0.0,
-    offset_y: 0.0,
-    depth: 0.0,
-    measurement_height: 0.0,
-  },
-};
-
-const PIPETTE_MODELS = [
-  "p20_single_gen2",
-  "p300_single_gen2",
-  "p1000_single_gen2",
-  "p20_multi_gen2",
-  "p300_multi_gen2",
-  "flex_1channel_50",
-  "flex_1channel_1000",
-  "flex_8channel_50",
-  "flex_8channel_1000",
-  "flex_96channel_1000",
-];
-
-const INSTRUMENT_LABELS: Record<string, string> = {
-  uvvis_ccs: "UV-Vis CCS (Thorlabs)",
-  pipette: "Pipette (Opentrons)",
-  filmetrics: "Filmetrics",
-};
+/** Convert snake_case type key to a readable label. */
+function typeLabel(type: string): string {
+  return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 const INSTRUMENT_COLORS: Record<string, string> = {
   uvvis_ccs: "#7c3aed",
@@ -71,10 +25,17 @@ const INSTRUMENT_COLORS: Record<string, string> = {
   filmetrics: "#d97706",
 };
 
-export default function BoardEditor({ configs, selectedFile, onSelectFile, board, onSave }: Props) {
+export default function BoardEditor({ configs, selectedFile, onSelectFile, board, instrumentTypes, instrumentSchemas, onSave }: Props) {
   const [instruments, setInstruments] = useState<Record<string, InstrumentConfig>>({});
-  const [addType, setAddType] = useState<string>("uvvis_ccs");
+  const [addType, setAddType] = useState<string>("");
   const [saveAs, setSaveAs] = useState("");
+
+  // Default the add-type dropdown to the first available instrument type.
+  useEffect(() => {
+    if (!addType && instrumentTypes.length > 0) {
+      setAddType(instrumentTypes[0].type);
+    }
+  }, [instrumentTypes, addType]);
 
   useEffect(() => {
     if (board) {
@@ -93,9 +54,17 @@ export default function BoardEditor({ configs, selectedFile, onSelectFile, board
   };
 
   const addInstrument = () => {
+    if (!addType) return;
     const idx = Object.keys(instruments).length + 1;
     const key = `${addType}_${idx}`;
-    const template = structuredClone(INSTRUMENT_TEMPLATES[addType]);
+    // Seed with type + defaults from schema.
+    const template: InstrumentConfig = { type: addType, offset_x: 0, offset_y: 0 };
+    const fields = instrumentSchemas[addType] ?? [];
+    for (const field of fields) {
+      if (field.default != null) {
+        (template as Record<string, unknown>)[field.name] = field.default;
+      }
+    }
     setInstruments({ ...instruments, [key]: template });
   };
 
@@ -107,24 +76,26 @@ export default function BoardEditor({ configs, selectedFile, onSelectFile, board
 
       <div style={{ display: "flex", gap: 8, margin: "12px 0", alignItems: "center" }}>
         <select value={addType} onChange={(e) => setAddType(e.target.value)} style={selectStyle}>
-          {Object.entries(INSTRUMENT_LABELS).map(([k, label]) => (
-            <option key={k} value={k}>{label}</option>
+          {instrumentTypes.map((it) => (
+            <option key={it.type} value={it.type}>{typeLabel(it.type)}{it.is_mock ? " (mock)" : ""}</option>
           ))}
         </select>
         <button onClick={addInstrument} style={addBtnStyle}>+ Add</button>
       </div>
 
       {Object.entries(instruments).map(([key, inst]) => {
-        const color = INSTRUMENT_COLORS[inst.type] ?? "#666";
+        const color = INSTRUMENT_COLORS[inst.type] ?? INSTRUMENT_COLORS[inst.type.replace("mock_", "")] ?? "#666";
+        const fields = instrumentSchemas[inst.type] ?? [];
         return (
           <div key={key} style={cardStyle}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <h4 style={{ margin: 0, color, fontSize: 13 }}>
-                {key} <span style={{ fontWeight: 400, color: "#888", fontSize: 11 }}>({INSTRUMENT_LABELS[inst.type] ?? inst.type})</span>
+                {key} <span style={{ fontWeight: 400, color: "#888", fontSize: 11 }}>({typeLabel(inst.type)})</span>
               </h4>
               <button onClick={() => remove(key)} style={removeBtnStyle}>Remove</button>
             </div>
 
+            {/* Common base-class fields (all instruments) */}
             <div style={{ display: "flex", gap: 8 }}>
               <NumberField label="Offset X" value={inst.offset_x} onChange={(v) => update(key, { ...inst, offset_x: v })} />
               <NumberField label="Offset Y" value={inst.offset_y} onChange={(v) => update(key, { ...inst, offset_y: v })} />
@@ -134,37 +105,45 @@ export default function BoardEditor({ configs, selectedFile, onSelectFile, board
               <NumberField label="Meas. height" value={Number(inst.measurement_height ?? 0)} onChange={(v) => update(key, { ...inst, measurement_height: v })} />
             </div>
 
-            {inst.type === "uvvis_ccs" && (
+            {/* Type-specific fields from PANDA_CORE instrument schema */}
+            {fields.length > 0 && (
               <div style={{ marginTop: 8 }}>
-                <TextField label="Serial number" value={String(inst.serial_number ?? "")} onChange={(v) => update(key, { ...inst, serial_number: v })} />
-                <TextField label="DLL path" value={String(inst.dll_path ?? "")} onChange={(v) => update(key, { ...inst, dll_path: v })} />
-                <NumberField label="Integration time (s)" value={Number(inst.default_integration_time_s ?? 0.24)} onChange={(v) => update(key, { ...inst, default_integration_time_s: v })} />
-              </div>
-            )}
-
-            {inst.type === "pipette" && (
-              <div style={{ marginTop: 8 }}>
-                <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
-                  <span style={{ color: "#666" }}>Pipette model</span>
-                  <select
-                    value={String(inst.pipette_model ?? "p300_single_gen2")}
-                    onChange={(e) => update(key, { ...inst, pipette_model: e.target.value })}
-                    style={selectStyle}
-                  >
-                    {PIPETTE_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                </label>
-                <TextField label="Port" value={String(inst.port ?? "")} onChange={(v) => update(key, { ...inst, port: v })} />
-                <NumberField label="Baud rate" value={Number(inst.baud_rate ?? 115200)} step={1} onChange={(v) => update(key, { ...inst, baud_rate: v })} />
-                <NumberField label="Command timeout (s)" value={Number(inst.command_timeout ?? 30)} onChange={(v) => update(key, { ...inst, command_timeout: v })} />
-              </div>
-            )}
-
-            {inst.type === "filmetrics" && (
-              <div style={{ marginTop: 8 }}>
-                <TextField label="Exe path" value={String(inst.exe_path ?? "")} onChange={(v) => update(key, { ...inst, exe_path: v })} />
-                <TextField label="Recipe name" value={String(inst.recipe_name ?? "")} onChange={(v) => update(key, { ...inst, recipe_name: v })} />
-                <NumberField label="Command timeout (s)" value={Number(inst.command_timeout ?? 30)} onChange={(v) => update(key, { ...inst, command_timeout: v })} />
+                {fields.map((field) => {
+                  const value = (inst as Record<string, unknown>)[field.name];
+                  if (field.choices) {
+                    return (
+                      <label key={field.name} style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12, marginTop: 4 }}>
+                        <span style={{ color: "#666" }}>{fieldLabel(field.name)}{field.required ? " *" : ""}</span>
+                        <select
+                          value={String(value ?? field.default ?? "")}
+                          onChange={(e) => update(key, { ...inst, [field.name]: e.target.value })}
+                          style={selectStyle}
+                        >
+                          {field.choices.map((c) => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      </label>
+                    );
+                  }
+                  if (field.type === "float" || field.type === "int") {
+                    return (
+                      <NumberField
+                        key={field.name}
+                        label={fieldLabel(field.name) + (field.required ? " *" : "")}
+                        value={Number(value ?? field.default ?? 0)}
+                        step={field.type === "int" ? 1 : undefined}
+                        onChange={(v) => update(key, { ...inst, [field.name]: v })}
+                      />
+                    );
+                  }
+                  return (
+                    <TextField
+                      key={field.name}
+                      label={fieldLabel(field.name) + (field.required ? " *" : "")}
+                      value={String(value ?? field.default ?? "")}
+                      onChange={(v) => update(key, { ...inst, [field.name]: v })}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
@@ -187,6 +166,11 @@ export default function BoardEditor({ configs, selectedFile, onSelectFile, board
       )}
     </div>
   );
+}
+
+/** Convert snake_case field name to a readable label. */
+function fieldLabel(name: string): string {
+  return name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 const cardStyle: React.CSSProperties = {

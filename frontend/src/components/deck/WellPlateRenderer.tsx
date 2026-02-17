@@ -45,8 +45,6 @@ export default function WellPlateRenderer({
   const rectW = Math.abs(bottomRight.sx - topLeft.sx);
   const rectH = Math.abs(bottomRight.sy - topLeft.sy);
 
-  const hasWells = Object.keys(wells).length > 0;
-
   return (
     <g>
       <rect
@@ -63,35 +61,23 @@ export default function WellPlateRenderer({
       <text x={rectX + 4} y={rectY - 4} fill="#2563eb" fontSize={10} fontWeight={500}>
         {config.name || "Well Plate"}
       </text>
-      {hasWells
-        ? Object.entries(wells).map(([id, pos]) => {
-            const { sx, sy } = machineToSvg(
-              pos.x,
-              pos.y,
-              svgWidth,
-              svgHeight,
-              machineXRange,
-              machineYRange
-            );
-            return (
-              <circle key={id} cx={sx} cy={sy} r={wellRadius} fill="#2563eb" opacity={0.5}>
-                <title>
-                  {id}: ({pos.x}, {pos.y}, {pos.z})
-                </title>
-              </circle>
-            );
-          })
-        : /* No server-computed wells yet — show grid dots from config */
-          Array.from({ length: config.rows }, (_, r) =>
-            Array.from({ length: config.columns }, (_, c) => {
-              const wx = a1.x + config.x_offset_mm * c;
-              const wy = a1.y + config.y_offset_mm * r;
-              const { sx, sy } = machineToSvg(wx, wy, svgWidth, svgHeight, machineXRange, machineYRange);
-              return (
-                <circle key={`${r}-${c}`} cx={sx} cy={sy} r={wellRadius} fill="#2563eb" opacity={0.3} />
-              );
-            })
-          ).flat()}
+      {Object.entries(wells).map(([id, pos]) => {
+        const { sx, sy } = machineToSvg(
+          pos.x,
+          pos.y,
+          svgWidth,
+          svgHeight,
+          machineXRange,
+          machineYRange
+        );
+        return (
+          <circle key={id} cx={sx} cy={sy} r={wellRadius} fill="#2563eb" opacity={0.5}>
+            <title>
+              {id}: ({pos.x}, {pos.y}, {pos.z})
+            </title>
+          </circle>
+        );
+      })}
     </g>
   );
 }

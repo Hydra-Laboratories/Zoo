@@ -110,6 +110,31 @@ export interface GantryPosition {
   connected: boolean;
 }
 
+// Board introspection (from PANDA_CORE)
+
+export interface InstrumentTypeInfo {
+  type: string;
+  is_mock: boolean;
+}
+
+export interface PipetteModelInfo {
+  name: string;
+  family: string;
+  channels: number;
+  max_volume: number;
+  min_volume: number;
+}
+
+export interface InstrumentFieldInfo {
+  name: string;
+  type: string;
+  required: boolean;
+  default: unknown;
+  choices: string[] | null;
+}
+
+export type InstrumentSchemas = Record<string, InstrumentFieldInfo[]>;
+
 // Protocol
 
 export interface CommandArg {

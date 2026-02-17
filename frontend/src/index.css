@@ -22,3 +22,9 @@ body {
 input, select, button, textarea {
   font-family: inherit;
 }
+
+/* Jog button press feedback */
+.jog-btn:active:not(:disabled) {
+  background: #ddd;
+  transform: scale(0.93);
+}

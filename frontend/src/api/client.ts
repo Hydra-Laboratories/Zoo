@@ -22,11 +22,22 @@ export const deckApi = {
       method: "PUT",
       body: JSON.stringify(body),
     }),
+  previewWells: (config: import("../types").WellPlateConfig) =>
+    request<Record<string, import("../types").WellPosition>>("/deck/preview-wells", {
+      method: "POST",
+      body: JSON.stringify(config),
+    }),
 };
 
 // Board
 export const boardApi = {
   listConfigs: () => request<string[]>("/board/configs"),
+  listInstrumentTypes: () =>
+    request<import("../types").InstrumentTypeInfo[]>("/board/instrument-types"),
+  listPipetteModels: () =>
+    request<import("../types").PipetteModelInfo[]>("/board/pipette-models"),
+  getInstrumentSchemas: () =>
+    request<import("../types").InstrumentSchemas>("/board/instrument-schemas"),
   get: (filename: string) =>
     request<import("../types").BoardResponse>(`/board/${filename}`),
   put: (filename: string, body: import("../types").BoardConfig) =>

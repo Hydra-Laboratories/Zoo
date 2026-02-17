@@ -78,21 +78,21 @@ export default function GantryPositionWidget({ position, workingVolume }: Props)
             {/* XY D-pad */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 40px)", gridTemplateRows: "repeat(3, 40px)", gap: 2 }}>
               <div />
-              <button style={jogBtnStyle} disabled={jogDisabled} onClick={() => jog(0, -xyStep, 0)} title="Y-">
+              <button className="jog-btn" style={jogBtnStyle} disabled={jogDisabled} onClick={() => jog(0, -xyStep, 0)} title="Y-">
                 ↑
               </button>
               <div />
-              <button style={jogBtnStyle} disabled={jogDisabled} onClick={() => jog(-xyStep, 0, 0)} title="X-">
+              <button className="jog-btn" style={jogBtnStyle} disabled={jogDisabled} onClick={() => jog(-xyStep, 0, 0)} title="X-">
                 ←
               </button>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#bbb" }}>
                 XY
               </div>
-              <button style={jogBtnStyle} disabled={jogDisabled} onClick={() => jog(xyStep, 0, 0)} title="X+">
+              <button className="jog-btn" style={jogBtnStyle} disabled={jogDisabled} onClick={() => jog(xyStep, 0, 0)} title="X+">
                 →
               </button>
               <div />
-              <button style={jogBtnStyle} disabled={jogDisabled} onClick={() => jog(0, xyStep, 0)} title="Y+">
+              <button className="jog-btn" style={jogBtnStyle} disabled={jogDisabled} onClick={() => jog(0, xyStep, 0)} title="Y+">
                 ↓
               </button>
               <div />
@@ -100,11 +100,11 @@ export default function GantryPositionWidget({ position, workingVolume }: Props)
 
             {/* Z controls */}
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <button style={jogBtnStyle} disabled={jogDisabled} onClick={() => jog(0, 0, zStep)} title="Z+">
+              <button className="jog-btn" style={jogBtnStyle} disabled={jogDisabled} onClick={() => jog(0, 0, zStep)} title="Z+">
                 Z+
               </button>
               <div style={{ fontSize: 10, color: "#bbb", textAlign: "center" }}>Z</div>
-              <button style={jogBtnStyle} disabled={jogDisabled} onClick={() => jog(0, 0, -zStep)} title="Z-">
+              <button className="jog-btn" style={jogBtnStyle} disabled={jogDisabled} onClick={() => jog(0, 0, -zStep)} title="Z-">
                 Z−
               </button>
             </div>
@@ -170,6 +170,15 @@ export default function GantryPositionWidget({ position, workingVolume }: Props)
 
       {/* Connection controls — bottom */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", borderTop: "1px solid #eee", paddingTop: 10 }}>
+        <span style={{
+          width: 8, height: 8, borderRadius: "50%",
+          background: connected ? "#22c55e" : "#dc2626",
+          display: "inline-block",
+          flexShrink: 0,
+        }} />
+        <span style={{ fontSize: 11, color: connected ? "#22c55e" : "#888" }}>
+          {connected ? "Connected" : "Not connected"}
+        </span>
         {!connected ? (
           <button onClick={handleConnect} disabled={loading} style={btnStyle}>
             {loading ? "Scanning..." : "Connect"}
@@ -237,4 +246,5 @@ const jogBtnStyle: React.CSSProperties = {
   fontSize: 16,
   fontWeight: 600,
   color: "#1a1a1a",
+  transition: "background 0.1s, transform 0.1s",
 };

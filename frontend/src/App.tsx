@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import AppLayout from "./components/layout/AppLayout";
 import DeckVisualization from "./components/deck/DeckVisualization";
@@ -8,12 +8,12 @@ import DeckEditor from "./components/editor/DeckEditor";
 import BoardEditor from "./components/editor/BoardEditor";
 import GantryEditor from "./components/editor/GantryEditor";
 import ProtocolEditor from "./components/editor/ProtocolEditor";
-import { settingsApi } from "./api/client";
+import { settingsApi, deckApi } from "./api/client";
 import { useDeckConfigs, useDeck, useSaveDeck } from "./hooks/useDeck";
-import { useBoardConfigs, useBoard, useSaveBoard } from "./hooks/useBoard";
+import { useBoardConfigs, useBoard, useSaveBoard, useInstrumentTypes, useInstrumentSchemas } from "./hooks/useBoard";
 import { useGantryPosition, useGantryConfigs, useGantry, useSaveGantry } from "./hooks/useGantryPosition";
 import { useProtocolCommands, useProtocolConfigs, useProtocol, useSaveProtocol, useValidateProtocol } from "./hooks/useProtocol";
-import type { DeckResponse, ProtocolValidationResponse, WorkingVolume } from "./types";
+import type { DeckResponse, WellPosition, ProtocolValidationResponse, WorkingVolume } from "./types";
 
 export default function App() {
   const qc = useQueryClient();
@@ -53,6 +53,8 @@ export default function App() {
   const boardConfigs = useBoardConfigs();
   const boardQuery = useBoard(boardFile);
   const saveBoard = useSaveBoard(boardFile ?? "");
+  const instrumentTypes = useInstrumentTypes();
+  const instrumentSchemas = useInstrumentSchemas();
 
   const gantryConfigs = useGantryConfigs();
   const gantryQuery = useGantry(gantryFile);
@@ -66,7 +68,44 @@ export default function App() {
   const validateProtocol = useValidateProtocol();
 
   const [localDeck, setLocalDeck] = useState<DeckResponse | null>(null);
-  const displayDeck = localDeck ?? deckQuery.data ?? null;
+  const [previewWells, setPreviewWells] = useState<Record<string, Record<string, WellPosition>>>({});
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Compute well positions via PANDA_CORE when user edits a deck locally.
+  React.useEffect(() => {
+    if (!localDeck) {
+      setPreviewWells({});
+      return;
+    }
+    clearTimeout(previewTimerRef.current);
+    previewTimerRef.current = setTimeout(async () => {
+      const result: Record<string, Record<string, WellPosition>> = {};
+      for (const item of localDeck.labware) {
+        if (item.config.type === "well_plate") {
+          try {
+            result[item.key] = await deckApi.previewWells(item.config);
+          } catch {
+            // Config may be incomplete during editing — skip.
+          }
+        }
+      }
+      setPreviewWells(result);
+    }, 300);
+    return () => clearTimeout(previewTimerRef.current);
+  }, [localDeck]);
+
+  const displayDeck = useMemo(() => {
+    const base = localDeck ?? deckQuery.data ?? null;
+    if (!base) return null;
+    // Merge server-computed or preview wells into each labware item.
+    return {
+      ...base,
+      labware: base.labware.map((item) => ({
+        ...item,
+        wells: item.wells ?? previewWells[item.key] ?? null,
+      })),
+    };
+  }, [localDeck, deckQuery.data, previewWells]);
 
   const workingVolume: WorkingVolume | null = gantryQuery.data?.config.working_volume ?? null;
   const machineXRange: [number, number] = workingVolume
@@ -123,6 +162,15 @@ export default function App() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
           disabledTabs={!deckQuery.data || !boardQuery.data || !gantryQuery.data ? ["Protocol"] : []}
+          disabledMessage={(() => {
+            const missing = [
+              !gantryQuery.data && "Gantry",
+              !deckQuery.data && "Deck",
+              !boardQuery.data && "Board",
+            ].filter(Boolean);
+            if (missing.length === 0) return null;
+            return `Please load ${missing.join(", ")} config${missing.length > 1 ? "s" : ""} first.`;
+          })()}
         />
       {activeTab === "Deck" && (
         <DeckEditor
@@ -141,6 +189,8 @@ export default function App() {
           selectedFile={boardFile}
           onSelectFile={setBoardFile}
           board={boardQuery.data ?? null}
+          instrumentTypes={instrumentTypes.data ?? []}
+          instrumentSchemas={instrumentSchemas.data ?? {}}
           onSave={(body) => saveBoard.mutate(body)}
           onRefresh={refreshAll}
         />
@@ -155,7 +205,7 @@ export default function App() {
           onRefresh={refreshAll}
         />
       )}
-      {activeTab === "Protocol" && (
+      {activeTab === "Protocol" && deckQuery.data && boardQuery.data && gantryQuery.data && (
         <ProtocolEditor
           configs={protocolConfigs.data ?? []}
           selectedFile={protocolFile}

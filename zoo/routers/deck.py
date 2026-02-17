@@ -4,6 +4,8 @@ from typing import Any, Dict, Optional
 
 from deck import load_deck_from_yaml
 from deck.labware.well_plate import WellPlate
+from deck.loader import _derive_wells_from_calibration
+from deck.yaml_schema import WellPlateYamlEntry
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -68,6 +70,21 @@ def get_deck(filename: str) -> DeckResponse:
         items.append(LabwareResponse(key=key, config=config, wells=wells))
 
     return DeckResponse(filename=filename, labware=items)
+
+
+@router.post("/preview-wells")
+def preview_wells(body: dict) -> Dict[str, WellPosition]:
+    """Compute well positions from a well plate config using PANDA_CORE's
+    calibration logic, without requiring the config to be saved first."""
+    try:
+        entry = WellPlateYamlEntry.model_validate(body)
+        wells = _derive_wells_from_calibration(entry)
+        return {
+            wid: WellPosition(x=round(c.x, 3), y=round(c.y, 3), z=round(c.z, 3))
+            for wid, c in wells.items()
+        }
+    except Exception as e:
+        raise HTTPException(400, str(e))
 
 
 @router.put("/{filename}")

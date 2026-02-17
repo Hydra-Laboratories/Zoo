@@ -1,5 +1,7 @@
 """Gantry config + position API endpoints."""
 
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException
 from gantry import Gantry
 from pydantic import BaseModel
@@ -13,7 +15,7 @@ settings = ZooSettings()
 configs_dir = settings.panda_core_path / "configs"
 
 # Single Gantry instance shared across requests.
-_gantry: Gantry | None = None
+_gantry: Optional[Gantry] = None
 
 
 @router.get("/configs")
@@ -27,7 +29,9 @@ def get_position() -> GantryPosition:
         return GantryPosition(connected=False, status="Not connected")
     try:
         coords = _gantry.get_coordinates()
-        status = _gantry.get_status()
+        raw_status = _gantry.get_status()
+        # Parse GRBL status: "<Idle|MPos:...>" → "Idle"
+        status = raw_status.strip("<>").split("|")[0] if raw_status else "Unknown"
         return GantryPosition(
             x=round(coords["x"], 3),
             y=round(coords["y"], 3),
