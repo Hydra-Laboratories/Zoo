@@ -14,7 +14,7 @@ from protocol_engine.registry import CommandRegistry
 # Side-effect import: triggers @protocol_command registration.
 import protocol_engine.commands  # noqa: F401
 
-from zoo.config import ZooSettings
+from zoo.config import get_settings
 from zoo.models.protocol import (
     CommandArg,
     CommandInfo,
@@ -26,8 +26,6 @@ from zoo.models.protocol import (
 from zoo.services.yaml_io import list_configs, read_yaml, resolve_config_path, write_yaml
 
 router = APIRouter(prefix="/api/protocol", tags=["protocol"])
-_settings = ZooSettings()
-configs_dir = _settings.panda_core_path / "configs"
 
 
 # ---------------------------------------------------------------------------
@@ -87,12 +85,12 @@ def get_command(name: str) -> CommandInfo:
 
 @router.get("/configs")
 def list_protocol_configs() -> List[str]:
-    return list_configs(configs_dir, "protocol")
+    return list_configs(get_settings().configs_dir, "protocol")
 
 
 @router.get("/{filename}")
 def get_protocol(filename: str) -> ProtocolResponse:
-    path = resolve_config_path(configs_dir, "protocol", filename)
+    path = resolve_config_path(get_settings().configs_dir, "protocol", filename)
     if not path.is_file():
         raise HTTPException(404, f"Protocol file not found: {filename}")
     data = read_yaml(path)
@@ -112,7 +110,7 @@ def get_protocol(filename: str) -> ProtocolResponse:
 
 @router.put("/{filename}")
 def save_protocol(filename: str, body: ProtocolConfig) -> dict:
-    path = resolve_config_path(configs_dir, "protocol", filename)
+    path = resolve_config_path(get_settings().configs_dir, "protocol", filename)
     # Convert to YAML-native format: list of {command: {args}}
     protocol_list = []
     for step in body.protocol:

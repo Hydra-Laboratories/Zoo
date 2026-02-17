@@ -3,11 +3,9 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from zoo.config import ZooSettings
+from zoo.config import get_settings
 
 router = APIRouter(prefix="/api/raw", tags=["raw"])
-settings = ZooSettings()
-configs_dir = settings.panda_core_path / "configs"
 
 
 class RawYaml(BaseModel):
@@ -16,7 +14,7 @@ class RawYaml(BaseModel):
 
 @router.get("/{filename}")
 def get_raw(filename: str) -> RawYaml:
-    path = configs_dir / filename
+    path = get_settings().configs_dir / filename
     if not path.is_file():
         raise HTTPException(404, f"Config not found: {filename}")
     return RawYaml(content=path.read_text())
@@ -24,6 +22,6 @@ def get_raw(filename: str) -> RawYaml:
 
 @router.put("/{filename}")
 def put_raw(filename: str, body: RawYaml) -> RawYaml:
-    path = configs_dir / filename
+    path = get_settings().configs_dir / filename
     path.write_text(body.content)
     return RawYaml(content=path.read_text())

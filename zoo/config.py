@@ -11,3 +11,15 @@ class ZooSettings(BaseSettings):
 
     class Config:
         env_prefix = "ZOO_"
+
+    @property
+    def configs_dir(self) -> Path:
+        return self.panda_core_path / "configs"
+
+
+# Shared singleton — all routers must use this instance.
+_settings = ZooSettings()
+
+
+def get_settings() -> ZooSettings:
+    return _settings

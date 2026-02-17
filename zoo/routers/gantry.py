@@ -6,13 +6,11 @@ from fastapi import APIRouter, HTTPException
 from gantry import Gantry
 from pydantic import BaseModel
 
-from zoo.config import ZooSettings
+from zoo.config import get_settings
 from zoo.models.gantry import GantryConfig, GantryPosition, GantryResponse
 from zoo.services.yaml_io import list_configs, read_yaml, resolve_config_path, write_yaml
 
 router = APIRouter(prefix="/api/gantry", tags=["gantry"])
-settings = ZooSettings()
-configs_dir = settings.panda_core_path / "configs"
 
 # Single Gantry instance shared across requests.
 _gantry: Optional[Gantry] = None
@@ -20,7 +18,7 @@ _gantry: Optional[Gantry] = None
 
 @router.get("/configs")
 def list_gantry_configs() -> list[str]:
-    return list_configs(configs_dir, "gantry")
+    return list_configs(get_settings().configs_dir, "gantry")
 
 
 @router.get("/position")
@@ -84,10 +82,10 @@ def jog(req: JogRequest) -> GantryPosition:
 def connect() -> GantryPosition:
     global _gantry
     try:
-        gantry_configs = list_configs(configs_dir, "gantry")
+        gantry_configs = list_configs(get_settings().configs_dir, "gantry")
         config = {}
         if gantry_configs:
-            config = read_yaml(resolve_config_path(configs_dir, "gantry", gantry_configs[0]))
+            config = read_yaml(resolve_config_path(get_settings().configs_dir, "gantry", gantry_configs[0]))
         _gantry = Gantry(config=config)
         _gantry.connect()
     except Exception as e:
@@ -107,7 +105,7 @@ def disconnect() -> GantryPosition:
 
 @router.get("/{filename}")
 def get_gantry(filename: str) -> GantryResponse:
-    path = resolve_config_path(configs_dir, "gantry", filename)
+    path = resolve_config_path(get_settings().configs_dir, "gantry", filename)
     if not path.is_file():
         raise HTTPException(404, f"Config not found: {filename}")
     data = read_yaml(path)
@@ -117,6 +115,6 @@ def get_gantry(filename: str) -> GantryResponse:
 
 @router.put("/{filename}")
 def put_gantry(filename: str, body: dict) -> GantryResponse:
-    path = resolve_config_path(configs_dir, "gantry", filename)
+    path = resolve_config_path(get_settings().configs_dir, "gantry", filename)
     write_yaml(path, body)
     return get_gantry(filename)

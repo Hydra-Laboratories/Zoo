@@ -10,12 +10,10 @@ from instruments.base_instrument import BaseInstrument
 from instruments.pipette.models import PIPETTE_MODELS
 from pydantic import BaseModel
 
-from zoo.config import ZooSettings
+from zoo.config import get_settings
 from zoo.services.yaml_io import list_configs, read_yaml, resolve_config_path, write_yaml
 
 router = APIRouter(prefix="/api/board", tags=["board"])
-settings = ZooSettings()
-configs_dir = settings.panda_core_path / "configs"
 
 # Primitive types that can be represented in YAML / JSON form fields.
 _PRIMITIVE_TYPES = {str, int, float, bool}
@@ -145,12 +143,12 @@ def get_instrument_schemas() -> Dict[str, List[InstrumentFieldInfo]]:
 
 @router.get("/configs")
 def list_board_configs() -> list[str]:
-    return list_configs(configs_dir, "board")
+    return list_configs(get_settings().configs_dir, "board")
 
 
 @router.get("/{filename}")
 def get_board(filename: str) -> BoardResponse:
-    path = resolve_config_path(configs_dir, "board", filename)
+    path = resolve_config_path(get_settings().configs_dir, "board", filename)
     if not path.is_file():
         raise HTTPException(404, f"Config not found: {filename}")
 
@@ -170,6 +168,6 @@ def get_board(filename: str) -> BoardResponse:
 
 @router.put("/{filename}")
 def put_board(filename: str, body: dict) -> BoardResponse:
-    path = resolve_config_path(configs_dir, "board", filename)
+    path = resolve_config_path(get_settings().configs_dir, "board", filename)
     write_yaml(path, body)
     return get_board(filename)
