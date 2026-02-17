@@ -1,9 +1,11 @@
 /**
  * Machine coord -> SVG coord transform.
  *
- * Machine coordinates are negative (X: 0 to -300, Y: 0 to -200).
- * SVG maps |x| and |y| to screen coords so origin (0,0) is top-right,
- * matching the physical gantry home position.
+ * Machine coordinates are typically negative (X: -300 to 0, Y: -200 to 0).
+ * SVG origin (0,0) is top-left; machine home (0,0) maps to top-right.
+ * Uses a proper linear mapping so coordinates beyond the machine range
+ * (e.g. well plates that extend past 0) render correctly instead of
+ * folding back.
  */
 
 export const SVG_PADDING = 20;
@@ -21,9 +23,10 @@ export function machineToSvg(
   const drawW = svgWidth - 2 * SVG_PADDING;
   const drawH = svgHeight - 2 * SVG_PADDING;
 
-  // |mx| maps 0..300 → right..left, so SVG x = right side - scaled |mx|
-  const sx = SVG_PADDING + drawW - ((Math.abs(mx) - Math.abs(machineXRange[1])) / mxSpan) * drawW;
-  const sy = SVG_PADDING + ((Math.abs(my) - Math.abs(machineYRange[1])) / mySpan) * drawH;
+  // Linear map: machineXRange[0] → left edge, machineXRange[1] → right edge
+  const sx = SVG_PADDING + ((mx - machineXRange[0]) / mxSpan) * drawW;
+  // Linear map: machineYRange[1] (0) → top edge, machineYRange[0] (-200) → bottom edge
+  const sy = SVG_PADDING + ((machineYRange[1] - my) / mySpan) * drawH;
 
   return { sx, sy };
 }

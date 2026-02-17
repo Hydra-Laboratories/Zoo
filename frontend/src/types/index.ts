@@ -109,3 +109,37 @@ export interface GantryPosition {
   status: string;
   connected: boolean;
 }
+
+// Protocol
+
+export interface CommandArg {
+  name: string;
+  type: string;
+  required: boolean;
+  default: unknown;
+}
+
+export interface CommandInfo {
+  name: string;
+  args: CommandArg[];
+  description: string;
+}
+
+export interface ProtocolStep {
+  command: string;
+  args: Record<string, unknown>;
+}
+
+export interface ProtocolConfig {
+  protocol: ProtocolStep[];
+}
+
+export interface ProtocolResponse {
+  filename: string;
+  steps: ProtocolStep[];
+}
+
+export interface ProtocolValidationResponse {
+  valid: boolean;
+  errors: string[];
+}

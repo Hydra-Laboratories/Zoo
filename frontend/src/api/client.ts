@@ -48,13 +48,57 @@ export const gantryApi = {
     }),
   getPosition: () =>
     request<import("../types").GantryPosition>("/gantry/position"),
-  connect: (port: string, baudrate = 115200) =>
+  connect: () =>
     request<import("../types").GantryPosition>("/gantry/connect", {
       method: "POST",
-      body: JSON.stringify({ port, baudrate }),
     }),
   disconnect: () =>
     request<import("../types").GantryPosition>("/gantry/disconnect", {
+      method: "POST",
+    }),
+  jog: (x = 0, y = 0, z = 0) =>
+    request<import("../types").GantryPosition>("/gantry/jog", {
+      method: "POST",
+      body: JSON.stringify({ x, y, z }),
+    }),
+  home: () =>
+    request<import("../types").GantryPosition>("/gantry/home", {
+      method: "POST",
+    }),
+};
+
+// Protocol
+export const protocolApi = {
+  listCommands: () =>
+    request<import("../types").CommandInfo[]>("/protocol/commands"),
+  listConfigs: () => request<string[]>("/protocol/configs"),
+  get: (filename: string) =>
+    request<import("../types").ProtocolResponse>(`/protocol/${filename}`),
+  put: (filename: string, body: import("../types").ProtocolConfig) =>
+    request<{ status: string; filename: string }>(`/protocol/${filename}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  validate: (body: import("../types").ProtocolConfig) =>
+    request<import("../types").ProtocolValidationResponse>(
+      "/protocol/validate",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
+};
+
+// Settings
+export const settingsApi = {
+  get: () => request<{ panda_core_path: string }>("/settings"),
+  update: (panda_core_path: string) =>
+    request<{ panda_core_path: string }>("/settings", {
+      method: "PUT",
+      body: JSON.stringify({ panda_core_path }),
+    }),
+  browse: () =>
+    request<{ panda_core_path: string }>("/settings/browse", {
       method: "POST",
     }),
 };

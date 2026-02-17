@@ -1,16 +1,19 @@
 """Gantry config + position API endpoints."""
 
 from fastapi import APIRouter, HTTPException
+from gantry import Gantry
 from pydantic import BaseModel
 
 from zoo.config import ZooSettings
 from zoo.models.gantry import GantryConfig, GantryPosition, GantryResponse
-from zoo.services.grbl_status import grbl_poller
 from zoo.services.yaml_io import list_configs, read_yaml, write_yaml
 
 router = APIRouter(prefix="/api/gantry", tags=["gantry"])
 settings = ZooSettings()
 configs_dir = settings.panda_core_path / "configs"
+
+# Single Gantry instance shared across requests.
+_gantry: Gantry | None = None
 
 
 @router.get("/configs")
@@ -20,26 +23,81 @@ def list_gantry_configs() -> list[str]:
 
 @router.get("/position")
 def get_position() -> GantryPosition:
-    return grbl_poller.get_position()
+    if _gantry is None or not _gantry.is_healthy():
+        return GantryPosition(connected=False, status="Not connected")
+    try:
+        coords = _gantry.get_coordinates()
+        status = _gantry.get_status()
+        return GantryPosition(
+            x=round(coords["x"], 3),
+            y=round(coords["y"], 3),
+            z=round(coords["z"], 3),
+            status=status,
+            connected=True,
+        )
+    except Exception:
+        return GantryPosition(connected=False, status="Connection lost")
 
 
-class ConnectRequest(BaseModel):
-    port: str
-    baudrate: int = 115200
+@router.post("/home")
+def home() -> GantryPosition:
+    """Home the gantry using PANDA_CORE Gantry.home."""
+    if _gantry is None or not _gantry.is_healthy():
+        raise HTTPException(400, "Gantry not connected")
+    try:
+        _gantry.home()
+    except Exception as e:
+        raise HTTPException(500, f"Homing failed: {e}")
+    return get_position()
+
+
+class JogRequest(BaseModel):
+    x: float = 0.0
+    y: float = 0.0
+    z: float = 0.0
+
+
+@router.post("/jog")
+def jog(req: JogRequest) -> GantryPosition:
+    """Move the gantry by a relative offset using PANDA_CORE Gantry.move_to."""
+    if _gantry is None or not _gantry.is_healthy():
+        raise HTTPException(400, "Gantry not connected")
+    if req.x == 0 and req.y == 0 and req.z == 0:
+        return get_position()
+    try:
+        coords = _gantry.get_coordinates()
+        _gantry.move_to(
+            x=coords["x"] + req.x,
+            y=coords["y"] + req.y,
+            z=coords["z"] + req.z,
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Jog failed: {e}")
+    return get_position()
 
 
 @router.post("/connect")
-def connect(req: ConnectRequest) -> GantryPosition:
+def connect() -> GantryPosition:
+    global _gantry
     try:
-        grbl_poller.connect(req.port, req.baudrate)
+        gantry_configs = list_configs(configs_dir, "gantry")
+        config = {}
+        if gantry_configs:
+            config = read_yaml(configs_dir / gantry_configs[0])
+        _gantry = Gantry(config=config)
+        _gantry.connect()
     except Exception as e:
+        _gantry = None
         raise HTTPException(500, f"Failed to connect: {e}")
-    return grbl_poller.get_position()
+    return get_position()
 
 
 @router.post("/disconnect")
 def disconnect() -> GantryPosition:
-    grbl_poller.disconnect()
+    global _gantry
+    if _gantry:
+        _gantry.disconnect()
+    _gantry = None
     return GantryPosition(connected=False, status="Disconnected")
 
 
@@ -54,7 +112,7 @@ def get_gantry(filename: str) -> GantryResponse:
 
 
 @router.put("/{filename}")
-def put_gantry(filename: str, body: GantryConfig) -> GantryResponse:
+def put_gantry(filename: str, body: dict) -> GantryResponse:
     path = configs_dir / filename
-    write_yaml(path, body.model_dump(exclude_none=True))
+    write_yaml(path, body)
     return get_gantry(filename)

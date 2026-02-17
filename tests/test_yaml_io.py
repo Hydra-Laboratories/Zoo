@@ -28,6 +28,10 @@ def test_classify_gantry():
     assert classify_config({"working_volume": {}}) == "gantry"
 
 
+def test_classify_protocol():
+    assert classify_config({"protocol": []}) == "protocol"
+
+
 def test_classify_unknown():
     assert classify_config({"other": {}}) is None
 

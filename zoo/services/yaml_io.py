@@ -1,7 +1,9 @@
 """Read/write YAML config files safely."""
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
 
@@ -17,7 +19,7 @@ def write_yaml(path: Path, data: Dict[str, Any]) -> None:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
 
-def classify_config(data: Dict[str, Any]) -> str | None:
+def classify_config(data: Dict[str, Any]) -> Optional[str]:
     """Classify a YAML config by its top-level keys."""
     if "labware" in data:
         return "deck"
@@ -25,6 +27,8 @@ def classify_config(data: Dict[str, Any]) -> str | None:
         return "board"
     if "working_volume" in data:
         return "gantry"
+    if "protocol" in data:
+        return "protocol"
     return None
 
 

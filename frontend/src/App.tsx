@@ -7,19 +7,44 @@ import EditorTabs from "./components/editor/EditorTabs";
 import DeckEditor from "./components/editor/DeckEditor";
 import BoardEditor from "./components/editor/BoardEditor";
 import GantryEditor from "./components/editor/GantryEditor";
+import ProtocolEditor from "./components/editor/ProtocolEditor";
+import { settingsApi } from "./api/client";
 import { useDeckConfigs, useDeck, useSaveDeck } from "./hooks/useDeck";
 import { useBoardConfigs, useBoard, useSaveBoard } from "./hooks/useBoard";
 import { useGantryPosition, useGantryConfigs, useGantry, useSaveGantry } from "./hooks/useGantryPosition";
-import type { DeckResponse, WorkingVolume } from "./types";
+import { useProtocolCommands, useProtocolConfigs, useProtocol, useSaveProtocol, useValidateProtocol } from "./hooks/useProtocol";
+import type { DeckResponse, ProtocolValidationResponse, WorkingVolume } from "./types";
 
 export default function App() {
   const qc = useQueryClient();
-  const [activeTab, setActiveTab] = useState("Deck");
+  const [activeTab, setActiveTab] = useState("Gantry");
   const [campaignId, setCampaignId] = useState("");
+  const [pandaCorePath, setPandaCorePath] = useState<string | null>(null);
+  const [browseLoading, setBrowseLoading] = useState(false);
 
   const [deckFile, setDeckFile] = useState<string | null>(null);
   const [boardFile, setBoardFile] = useState<string | null>(null);
   const [gantryFile, setGantryFile] = useState<string | null>(null);
+  const [protocolFile, setProtocolFile] = useState<string | null>(null);
+  const [validationResult, setValidationResult] = useState<ProtocolValidationResponse | null>(null);
+
+  // Load current PANDA_CORE path on mount
+  React.useEffect(() => {
+    settingsApi.get().then((s) => setPandaCorePath(s.panda_core_path)).catch(() => {});
+  }, []);
+
+  const handleBrowse = async () => {
+    setBrowseLoading(true);
+    try {
+      const result = await settingsApi.browse();
+      setPandaCorePath(result.panda_core_path);
+      await settingsApi.update(result.panda_core_path);
+      refreshAll();
+    } catch {
+      // User cancelled the dialog
+    }
+    setBrowseLoading(false);
+  };
 
   const deckConfigs = useDeckConfigs();
   const deckQuery = useDeck(deckFile);
@@ -33,6 +58,12 @@ export default function App() {
   const gantryQuery = useGantry(gantryFile);
   const saveGantry = useSaveGantry(gantryFile ?? "");
   const gantryPosition = useGantryPosition();
+
+  const protocolCommands = useProtocolCommands();
+  const protocolConfigs = useProtocolConfigs();
+  const protocolQuery = useProtocol(protocolFile);
+  const saveProtocol = useSaveProtocol(protocolFile ?? "");
+  const validateProtocol = useValidateProtocol();
 
   const [localDeck, setLocalDeck] = useState<DeckResponse | null>(null);
   const displayDeck = localDeck ?? deckQuery.data ?? null;
@@ -49,6 +80,7 @@ export default function App() {
     qc.invalidateQueries({ queryKey: ["deck"] });
     qc.invalidateQueries({ queryKey: ["board"] });
     qc.invalidateQueries({ queryKey: ["gantry"] });
+    qc.invalidateQueries({ queryKey: ["protocol"] });
     setLocalDeck(null);
   };
 
@@ -70,7 +102,28 @@ export default function App() {
           />
         </label>
       </div>
-      <EditorTabs activeTab={activeTab} onTabChange={setActiveTab} />
+      <div style={{ marginBottom: 12 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: 12 }}>
+          <span style={{ color: "#666" }}>PANDA_CORE Path</span>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input
+              type="text"
+              value={pandaCorePath ?? ""}
+              readOnly
+              placeholder="Not set"
+              style={{ ...campaignInputStyle, flex: 1, color: pandaCorePath ? "#1a1a1a" : "#aaa" }}
+            />
+            <button onClick={handleBrowse} disabled={browseLoading} style={browseBtnStyle}>
+              {browseLoading ? "..." : "Browse"}
+            </button>
+          </div>
+        </label>
+      </div>
+      <EditorTabs
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          disabledTabs={!deckQuery.data || !boardQuery.data || !gantryQuery.data ? ["Protocol"] : []}
+        />
       {activeTab === "Deck" && (
         <DeckEditor
           configs={deckConfigs.data ?? []}
@@ -99,6 +152,24 @@ export default function App() {
           onSelectFile={setGantryFile}
           gantry={gantryQuery.data ?? null}
           onSave={(body) => saveGantry.mutate(body)}
+          onRefresh={refreshAll}
+        />
+      )}
+      {activeTab === "Protocol" && (
+        <ProtocolEditor
+          configs={protocolConfigs.data ?? []}
+          selectedFile={protocolFile}
+          onSelectFile={setProtocolFile}
+          commands={protocolCommands.data ?? []}
+          steps={protocolQuery.data?.steps ?? null}
+          onSave={(body) => saveProtocol.mutate(body)}
+          onValidate={(body) =>
+            validateProtocol.mutate(body, {
+              onSuccess: (res) => setValidationResult(res),
+            })
+          }
+          validationErrors={validationResult?.errors ?? null}
+          isValidating={validateProtocol.isPending}
           onRefresh={refreshAll}
         />
       )}
@@ -135,4 +206,15 @@ const campaignInputStyle: React.CSSProperties = {
   padding: "4px 8px",
   borderRadius: 4,
   fontSize: 13,
+};
+
+const browseBtnStyle: React.CSSProperties = {
+  background: "#f5f5f5",
+  color: "#1a1a1a",
+  border: "1px solid #ccc",
+  padding: "4px 10px",
+  borderRadius: 4,
+  cursor: "pointer",
+  fontSize: 12,
+  whiteSpace: "nowrap",
 };
